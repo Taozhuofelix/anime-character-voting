@@ -1,3 +1,4 @@
 download_images.py
 *.pyc
 __pycache__/
+*.db

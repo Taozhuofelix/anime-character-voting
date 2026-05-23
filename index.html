@@ -461,7 +461,24 @@ body::before {
   </footer>
 </div>
 
+
+<!-- Vote status bar -->
+<div class="controls" id="voteStatus" style="margin-bottom:20px;">
+  <span style="color:#b8a0d0;font-size:0.9em;">今日剩余：<strong id="remainingVotes" style="color:var(--pink);">--</strong> 票</span>
+</div>
+
 <script>
+// ===== User Identity =====
+function getUserId() {
+  let uid = localStorage.getItem('anime_user_id');
+  if (!uid) {
+    uid = crypto.randomUUID();
+    localStorage.setItem('anime_user_id', uid);
+  }
+  return uid;
+}
+const USER_ID = getUserId();
+
 // ===== Character Data =====
 const characters = [
   // 海贼王
@@ -500,25 +517,36 @@ const characters = [
 ];
 
 // ===== State =====
-const STORAGE_KEY = 'anime_votes_data';
-let votes = {};
+let allVotes = {};       // {character_id: total_votes}
+let userStats = null;    // {total_used, total_remaining, per_character}
 let currentFilter = 'all';
+let votingInProgress = false;
 
-function loadVotes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    votes = raw ? JSON.parse(raw) : {};
-  } catch(e) {
-    votes = {};
-  }
+// ===== API Calls =====
+async function apiCall(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(path, opts);
+  const data = await resp.json();
+  if (!resp.ok && data.error) throw new Error(data.error);
+  return data;
 }
 
-function saveVotes() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+async function loadAllVotes() {
+  allVotes = await apiCall('GET', '/api/votes');
+}
+
+async function loadUserStats() {
+  userStats = await apiCall('GET', '/api/user-stats?user_token=' + USER_ID);
+  updateRemainingDisplay();
+}
+
+async function refreshData() {
+  await Promise.all([loadAllVotes(), loadUserStats()]);
 }
 
 function getVotes(id) {
-  return votes[id] || 0;
+  return allVotes[id] || 0;
 }
 
 // ===== Render =====
@@ -565,7 +593,7 @@ function renderCards() {
           </div>
           <div class="card-footer">
             <span class="vote-count"><i class="fa-solid fa-heart"></i>${v} 票</span>
-            <button class="btn-vote" onclick="vote('${c.id}')">
+            <button class="btn-vote" onclick="castVote('${c.id}')" id="btn-${c.id}">
               <i class="fa-solid fa-thumbs-up"></i> +1
             </button>
           </div>
@@ -611,36 +639,72 @@ function renderLeaderboard() {
   }).join('');
 }
 
-// ===== Actions =====
-function vote(id) {
-  votes[id] = (votes[id] || 0) + 1;
-  saveVotes();
-  updateVoteDisplay(id);
-
-  // Floating +1 animation
-  const card = document.getElementById('card-' + id);
-  if (card) {
-    const btn = card.querySelector('.btn-vote');
-    btn.classList.add('voted');
-    setTimeout(() => btn.classList.remove('voted'), 400);
-
-    const float = document.createElement('span');
-    float.className = 'vote-float';
-    float.textContent = '+1';
-    float.style.left = (btn.offsetLeft + btn.offsetWidth / 2 - 15) + 'px';
-    float.style.top = btn.offsetTop + 'px';
-    card.appendChild(float);
-    setTimeout(() => float.remove(), 800);
+function updateRemainingDisplay() {
+  const el = document.getElementById('remainingVotes');
+  if (userStats) {
+    el.textContent = userStats.total_remaining;
+    if (userStats.total_remaining <= 10) el.style.color = '#ff4444';
+    else if (userStats.total_remaining <= 30) el.style.color = '#ff9f43';
+    else el.style.color = 'var(--pink)';
   }
-
-  renderLeaderboard();
 }
 
-function updateVoteDisplay(id) {
-  const card = document.getElementById('card-' + id);
-  if (card) {
-    const vc = card.querySelector('.vote-count');
-    vc.innerHTML = '<i class="fa-solid fa-heart"></i>' + getVotes(id) + ' 票';
+function updateAllVoteDisplays() {
+  document.querySelectorAll('.vote-count').forEach(el => {
+    const card = el.closest('.card');
+    if (card) {
+      const id = card.id.replace('card-', '');
+      el.innerHTML = '<i class="fa-solid fa-heart"></i>' + getVotes(id) + ' 票';
+    }
+  });
+}
+
+// ===== Actions =====
+async function castVote(id) {
+  if (votingInProgress) return;
+  votingInProgress = true;
+
+  const btn = document.getElementById('btn-' + id);
+  const originalHTML = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+  try {
+    const result = await apiCall('POST', '/api/vote', {
+      character_id: id,
+      user_token: USER_ID,
+    });
+
+    // Update from server response
+    if (result.all_votes) allVotes = result.all_votes;
+    userStats = {
+      total_used: result.total_used,
+      total_remaining: result.total_remaining,
+      per_character: {},
+    };
+
+    updateAllVoteDisplays();
+    updateRemainingDisplay();
+    renderLeaderboard();
+
+    // Animation
+    const card = document.getElementById('card-' + id);
+    if (card && btn) {
+      btn.classList.add('voted');
+      setTimeout(() => btn.classList.remove('voted'), 400);
+
+      const float = document.createElement('span');
+      float.className = 'vote-float';
+      float.textContent = '+1';
+      float.style.left = (btn.offsetLeft + btn.offsetWidth / 2 - 15) + 'px';
+      float.style.top = btn.offsetTop + 'px';
+      card.appendChild(float);
+      setTimeout(() => float.remove(), 800);
+    }
+  } catch (err) {
+    alert('投票失败：' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    votingInProgress = false;
   }
 }
 
@@ -653,11 +717,14 @@ function filterSeries(series) {
 }
 
 function resetVotes() {
-  if (confirm('确定要清空所有投票数据吗？此操作不可恢复！')) {
-    votes = {};
-    saveVotes();
-    renderAll();
-  }
+  const pw = prompt('请输入管理员密码以重置所有投票：');
+  if (!pw) return;
+  apiCall('POST', '/api/reset', { admin_token: pw })
+    .then(() => {
+      alert('所有投票已重置！');
+      refreshData().then(() => { updateAllVoteDisplays(); renderLeaderboard(); });
+    })
+    .catch(err => alert('重置失败：' + err.message));
 }
 
 // ===== Petals =====
@@ -677,9 +744,17 @@ function createPetals() {
 }
 
 // ===== Init =====
-loadVotes();
-createPetals();
-renderAll();
+async function init() {
+  try {
+    await refreshData();
+  } catch(e) {
+    console.warn('Failed to load data from server:', e);
+  }
+  createPetals();
+  renderAll();
+}
+
+init();
 </script>
 </body>
 </html>
