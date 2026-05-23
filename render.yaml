@@ -7,3 +7,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.0
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GIST_ID
+        value: 5c2ae750f014e032cce5f2f2c188e8b7

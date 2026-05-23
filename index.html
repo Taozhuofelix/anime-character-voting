@@ -505,68 +505,12 @@ const characters = [
   { id:'sanemi',    name:'不死川实弥', anime:'鬼灭之刃', series:'demonslayer', emoji:'💨', combat:87, charisma:68, appearance:82 },
 ];
 
-// ===== Gist Configuration =====
-const GIST_ID = '5c2ae750f014e032cce5f2f2c188e8b7';
-const GIST_RAW = 'https://gist.githubusercontent.com/Taozhuofelix/' + GIST_ID + '/raw/votes.json';
-const GIST_API = 'https://api.github.com/gists/' + GIST_ID;
+// ===== Backend Configuration =====
+// Backend URL — empty = same origin (works on Render)
+// Set to Render URL if hosting frontend separately (e.g. GitHub Pages)
+const BACKEND_URL = '';
 const MAX_DAILY = 100;
 const MAX_PER_CHAR = 10;
-
-// Token management - stored in localStorage, never transmitted to any server
-function getToken() {
-  return localStorage.getItem('gh_gist_token') || '';
-}
-function setToken(t) {
-  localStorage.setItem('gh_gist_token', t.trim());
-}
-
-// Show token setup dialog if no token configured
-function showTokenSetup() {
-  const modal = document.createElement('div');
-  modal.id = 'tokenModal';
-  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
-  modal.innerHTML = '<div style="background:#1e1233;border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:30px;max-width:500px;width:90%;text-align:center;">' +
-    '<h3 style="color:var(--pink);margin-bottom:12px;">配置 GitHub Token</h3>' +
-    '<p style="color:#b8a0d0;font-size:0.9em;margin-bottom:20px;">请输入 GitHub Fine-grained Token 以启用投票功能。<br>此 Token 仅保存在您的浏览器中，不会上传到任何服务器。</p>' +
-    '<ol style="text-align:left;color:#b8a0d0;font-size:0.8em;margin-bottom:20px;line-height:1.8;">' +
-      '<li>打开 <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--blue);">GitHub Settings → Fine-grained tokens</a></li>' +
-      '<li>点击 <b>Generate new token</b></li>' +
-      '<li>Resource owner: <b>Taozhuofelix</b></li>' +
-      '<li>Repository access: <b>Only select repositories</b> → 不选仓库</li>' +
-      '<li>Permissions: <b>Gists</b> → Read & Write</li>' +
-      '<li>复制生成的 Token 粘贴到下方</li>' +
-    '</ol>' +
-    '<input id="tokenInput" type="password" placeholder="github_pat_..." style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff;font-size:0.85em;margin-bottom:15px;">' +
-    '<div style="display:flex;gap:10px;justify-content:center;">' +
-      '<button id="tokenSaveBtn" class="btn btn-reset" style="padding:10px 30px;">保存并启用投票</button>' +
-      '<button onclick="document.getElementById(\'tokenModal\').remove()" class="btn" style="padding:10px 20px;">稍后设置</button>' +
-    '</div>' +
-    '<p id="tokenError" style="color:#ff4444;font-size:0.8em;margin-top:10px;display:none;"></p>' +
-  '</div>';
-  document.body.appendChild(modal);
-
-  document.getElementById('tokenSaveBtn').onclick = async function() {
-    const token = document.getElementById('tokenInput').value.trim();
-    if (!token) return;
-    try {
-      const testResp = await fetch(GIST_API, {
-        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
-      });
-      if (!testResp.ok) throw new Error('Token 无效 (HTTP ' + testResp.status + ')');
-      setToken(token);
-      document.getElementById('tokenModal').remove();
-      try { await loadData(); } catch(e) {}
-      updateAllCounts(); renderLeaderboard(); updateRemaining();
-    } catch(e) {
-      document.getElementById('tokenError').style.display = 'block';
-      document.getElementById('tokenError').textContent = '验证失败：' + e.message;
-    }
-  };
-
-  document.getElementById('tokenInput').onkeydown = function(e) {
-    if (e.key === 'Enter') document.getElementById('tokenSaveBtn').click();
-  };
-}
 
 // ===== User Identity =====
 function getUserId() {
@@ -582,101 +526,33 @@ let userDaily = {};  // {total: N, per_char: {char_id: N}}
 let currentFilter = 'all';
 let votingInProgress = false;
 
-// ===== Gist API =====
-async function gistRead() {
-  const resp = await fetch(GIST_RAW + '?t=' + Date.now());
-  if (!resp.ok) throw new Error('Failed to read vote data');
-  return resp.json();
-}
-
-async function gistWrite(data) {
-  const resp = await fetch(GIST_API, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': 'Bearer ' + getToken(),
-      'Content-Type': 'application/json',
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: JSON.stringify({
-      files: { 'votes.json': { content: JSON.stringify(data, null, 2) } }
-    })
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.message || 'Write failed (HTTP ' + resp.status + ')');
-  }
-}
-
-// ===== Data Loading =====
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+// ===== Backend API =====
+async function apiCall(path, options) {
+  const resp = await fetch(BACKEND_URL + path, options);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'API error (HTTP ' + resp.status + ')');
+  return data;
 }
 
 async function loadData() {
-  const data = await gistRead();
-  const today = todayStr();
-
-  // Check if day changed
-  if (data.last_reset !== today) {
-    data.daily = data.daily || {};
-    data.daily[today] = {};
-    data.last_reset = today;
-    try { await gistWrite(data); } catch(e) { /* best effort */ }
-  }
-
-  allVotes = data.votes || {};
-  const daily = (data.daily && data.daily[today]) || {};
-  const myData = daily[USER_ID] || { total: 0, per_char: {} };
-  userDaily = myData;
+  // Fetch all votes and user stats in parallel
+  const [votes, stats] = await Promise.all([
+    apiCall('/api/votes'),
+    apiCall('/api/user-stats?user_token=' + encodeURIComponent(USER_ID))
+  ]);
+  allVotes = votes;
+  userDaily = { total: stats.total_used, per_char: stats.per_character || {} };
 }
 
 async function voteAPI(characterId) {
-  const today = todayStr();
-
-  // Read latest data
-  const data = await gistRead();
-
-  // Ensure day structure
-  if (data.last_reset !== today) {
-    data.daily = {};
-    data.daily[today] = {};
-    data.last_reset = today;
-  }
-  data.daily = data.daily || {};
-  data.daily[today] = data.daily[today] || {};
-  data.votes = data.votes || {};
-
-  const dayData = data.daily[today];
-  const myData = dayData[USER_ID] || { total: 0, per_char: {} };
-
-  // Check limits
-  if (myData.total >= MAX_DAILY) {
-    throw new Error(`今日投票次数已用完（${MAX_DAILY}/天）`);
-  }
-  const charCount = myData.per_char[characterId] || 0;
-  if (charCount >= MAX_PER_CHAR) {
-    throw new Error(`该角色今日已投${MAX_PER_CHAR}票，已达上限`);
-  }
-
-  // Update
-  myData.total += 1;
-  myData.per_char[characterId] = charCount + 1;
-  dayData[USER_ID] = myData;
-  data.votes[characterId] = (data.votes[characterId] || 0) + 1;
-
-  // Write
-  await gistWrite(data);
-
-  // Update local state
-  allVotes = data.votes;
-  userDaily = myData;
-  return {
-    all_votes: data.votes,
-    total_used: myData.total,
-    total_remaining: MAX_DAILY - myData.total,
-    char_remaining: MAX_PER_CHAR - myData.per_char[characterId],
-  };
+  const result = await apiCall('/api/vote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ character_id: characterId, user_token: USER_ID })
+  });
+  if (result.all_votes) allVotes = result.all_votes;
+  userDaily = { total: result.total_used, per_char: {} };
+  return result;
 }
 
 // ===== Render =====
@@ -754,7 +630,6 @@ function updateAllCounts() {
 
 // ===== Vote Action =====
 async function castVote(id) {
-  if (!getToken()) { showTokenSetup(); return; }
   if (votingInProgress) return;
   votingInProgress = true;
   const btn = document.getElementById('btn-' + id);
@@ -796,9 +671,12 @@ function filterSeries(series) {
 }
 
 function resetVotes() {
-  if (!getToken()) { showTokenSetup(); return; }
   if (!confirm('确定要清空所有投票数据吗？（所有用户的投票都将清零）')) return;
-  gistWrite({ votes: {}, daily: {}, last_reset: todayStr() })
+  apiCall('/api/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_token: 'reset-all-votes-2024' })
+  })
     .then(() => { allVotes = {}; userDaily = { total:0, per_char:{} }; updateAllCounts(); updateRemaining(); renderLeaderboard(); })
     .catch(err => alert('重置失败：' + err.message));
 }
@@ -825,17 +703,11 @@ function createPetals() {
   renderAll();
   updateRemaining();
 
-  // Check if token is configured
-  if (!getToken()) {
-    showTokenSetup();
-  } else {
-    try { await loadData(); } catch(e) { console.warn('Load failed:', e); }
-    updateAllCounts(); renderLeaderboard(); updateRemaining();
-  }
+  try { await loadData(); } catch(e) { console.warn('Backend not available:', e); }
+  updateAllCounts(); renderLeaderboard(); updateRemaining();
 
   // Poll every 30s for new votes from other users
   setInterval(async () => {
-    if (!getToken()) return;
     try { await loadData(); updateAllCounts(); renderLeaderboard(); updateRemaining(); } catch(e) {}
   }, 30000);
 })();
