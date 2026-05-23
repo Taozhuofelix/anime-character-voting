@@ -511,7 +511,12 @@ const GIST_RAW = 'https://gist.githubusercontent.com/Taozhuofelix/' + GIST_ID + 
 const GIST_API = 'https://api.github.com/gists/' + GIST_ID;
 // IMPORTANT: Create a fine-grained GitHub token with ONLY 'gist' write access:
 // GitHub Settings → Developer settings → Fine-grained tokens → Only select this gist → Gist: Read & Write
-const GH_TOKEN = 'YOUR_GITHUB_TOKEN_HERE'; // <-- CREATE ONE: GitHub Settings → Developer settings → Fine-grained tokens → Only select this gist → Gist: Read & Write
+let GH_TOKEN = '';
+(async function loadToken() {
+  try {
+    GH_TOKEN = await fetch(GIST_RAW.replace('votes.json', 'token.txt') + '?t=' + Date.now()).then(r => r.text()).then(t => t.trim());
+  } catch(e) { console.warn('Token load failed, voting disabled'); }
+})();
 const MAX_DAILY = 100;
 const MAX_PER_CHAR = 10;
 
