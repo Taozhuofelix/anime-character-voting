@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动漫人物投票排名</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --pink: #ff6b9d;
+  --purple: #c44dff;
+  --blue: #4da6ff;
+  --bg: #1a0a2e;
+  --card-bg: #1e1233;
+  --text: #f0e6ff;
+  --gold: #ffd700;
+  --silver: #c0c0c0;
+  --bronze: #cd7f32;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Floating particles background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,107,157,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(196,77,255,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(77,166,255,0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Sakura petals */
+.petal {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  animation: fall linear infinite;
+  opacity: 0.6;
+  font-size: 20px;
+}
+@keyframes fall {
+  0% { transform: translateY(-10vh) rotate(0deg) translateX(0px); opacity: 0.8; }
+  50% { transform: translateY(50vh) rotate(180deg) translateX(80px); opacity: 0.4; }
+  100% { transform: translateY(110vh) rotate(360deg) translateX(-40px); opacity: 0; }
+}
+
+.container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 40px 20px 30px;
+  position: relative;
+}
+.header h1 {
+  font-size: 2.8em;
+  background: linear-gradient(135deg, var(--pink), var(--purple), var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+  text-shadow: none;
+  letter-spacing: 2px;
+}
+.header .subtitle {
+  font-size: 1.1em;
+  color: #b8a0d0;
+  letter-spacing: 4px;
+}
+.header .deco-line {
+  width: 200px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--pink), var(--purple), transparent);
+  margin: 15px auto 0;
+  border-radius: 2px;
+}
+
+/* Leaderboard */
+.leaderboard {
+  background: linear-gradient(135deg, rgba(255,107,157,0.1), rgba(196,77,255,0.1));
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 25px;
+  margin-bottom: 30px;
+  backdrop-filter: blur(10px);
+}
+.leaderboard h2 {
+  text-align: center;
+  font-size: 1.5em;
+  margin-bottom: 20px;
+  color: var(--gold);
+  letter-spacing: 3px;
+}
+.leaderboard h2 i { margin: 0 8px; }
+.lb-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.lb-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 8px 16px;
+  min-width: 180px;
+  transition: all 0.3s;
+  border: 1px solid transparent;
+}
+.lb-item:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+.lb-item.top-1 { border-color: var(--gold); background: rgba(255,215,0,0.1); }
+.lb-item.top-2 { border-color: var(--silver); background: rgba(192,192,192,0.1); }
+.lb-item.top-3 { border-color: var(--bronze); background: rgba(205,127,50,0.1); }
+.lb-rank {
+  font-weight: 900;
+  font-size: 1.2em;
+  width: 30px;
+  text-align: center;
+}
+.lb-rank.gold { color: var(--gold); }
+.lb-rank.silver { color: var(--silver); }
+.lb-rank.bronze { color: var(--bronze); }
+.lb-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+.lb-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.lb-avatar.onepiece { border-color: #e74c3c; }
+.lb-avatar.naruto { border-color: #f39c12; }
+.lb-avatar.demonslayer { border-color: #2ecc71; }
+.lb-info { flex: 1; min-width: 0; }
+.lb-name { font-weight: 700; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-anime { font-size: 0.7em; color: #a090c0; }
+.lb-votes {
+  font-weight: 700;
+  color: var(--pink);
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+.btn {
+  padding: 10px 24px;
+  border-radius: 25px;
+  border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  font-size: 0.95em;
+  font-weight: 600;
+  transition: all 0.3s;
+  letter-spacing: 1px;
+  background: transparent;
+  color: var(--text);
+}
+.btn:hover { transform: translateY(-2px); }
+.btn-reset {
+  background: rgba(255,107,157,0.2);
+  border-color: var(--pink);
+  color: var(--pink);
+}
+.btn-reset:hover { background: rgba(255,107,157,0.3); box-shadow: 0 0 20px rgba(255,107,157,0.3); }
+.btn-filter {
+  background: rgba(196,77,255,0.15);
+  border-color: rgba(196,77,255,0.4);
+}
+.btn-filter:hover { background: rgba(196,77,255,0.25); }
+.btn-filter.active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+
+/* Series tabs */
+.series-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+}
+.series-tab {
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 2px solid rgba(255,255,255,0.15);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9em;
+  transition: all 0.3s;
+  letter-spacing: 1px;
+  background: transparent;
+  color: #b8a0d0;
+}
+.series-tab:hover { border-color: rgba(255,255,255,0.3); }
+.series-tab.active {
+  color: #fff;
+  border-color: transparent;
+}
+.series-tab.onepiece.active { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+.series-tab.naruto.active { background: linear-gradient(135deg, #f39c12, #e67e22); }
+.series-tab.demonslayer.active { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+
+/* Cards Grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+@media (max-width: 768px) {
+  .cards-grid { grid-template-columns: 1fr; }
+  .header h1 { font-size: 2em; }
+  .header .subtitle { font-size: 0.9em; }
+  .lb-item { min-width: 140px; padding: 6px 12px; }
+}
+@media (max-width: 480px) {
+  .container { padding: 10px; }
+  .header { padding: 25px 10px 20px; }
+  .header h1 { font-size: 1.6em; }
+}
+
+/* Character Card */
+.card {
+  background: var(--card-bg);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  gap: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+}
+.card.onepiece::before { background: linear-gradient(180deg, #e74c3c, #c0392b); }
+.card.naruto::before { background: linear-gradient(180deg, #f39c12, #e67e22); }
+.card.demonslayer::before { background: linear-gradient(180deg, #2ecc71, #27ae60); }
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255,255,255,0.2);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.card-avatar {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  overflow: hidden;
+  border: 3px solid rgba(255,255,255,0.2);
+}
+.card-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.card-avatar.onepiece { border-color: #e74c3c; }
+.card-avatar.naruto { border-color: #f39c12; }
+.card-avatar.demonslayer { border-color: #2ecc71; }
+
+.card-body { flex: 1; min-width: 0; }
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.card-name { font-size: 1.2em; font-weight: 800; }
+.card-anime {
+  font-size: 0.7em;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.card-anime.onepiece { background: rgba(231,76,60,0.2); color: #e74c3c; }
+.card-anime.naruto { background: rgba(243,156,18,0.2); color: #f39c12; }
+.card-anime.demonslayer { background: rgba(46,204,113,0.2); color: #2ecc71; }
+
+.stats { display: flex; gap: 15px; margin: 10px 0; flex-wrap: wrap; }
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85em;
+}
+.stat-icon { font-size: 1.1em; }
+.stat-bar-bg {
+  width: 50px; height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.stat-bar-fill.combat { background: linear-gradient(90deg, #ff4444, #ff6b6b); }
+.stat-bar-fill.charisma { background: linear-gradient(90deg, #ff9f43, #feca57); }
+.stat-bar-fill.appearance { background: linear-gradient(90deg, #ff6b9d, #ff9ff3); }
+.stat-value { font-weight: 700; font-size: 0.9em; color: #ccc; min-width: 22px; }
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.vote-count {
+  font-size: 1.05em;
+  color: var(--pink);
+  font-weight: 700;
+}
+.vote-count i { margin-right: 4px; }
+
+.btn-vote {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85em;
+  letter-spacing: 0.5px;
+  transition: all 0.25s;
+  color: #fff;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  box-shadow: 0 4px 12px rgba(196,77,255,0.3);
+}
+.btn-vote:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(196,77,255,0.5);
+}
+.btn-vote:active { transform: scale(0.95); }
+.btn-vote.voted {
+  animation: votePop 0.4s ease;
+}
+@keyframes votePop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.2); }
+  60% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* Floating +1 */
+.vote-float {
+  position: absolute;
+  color: var(--pink);
+  font-weight: 900;
+  font-size: 1.2em;
+  pointer-events: none;
+  animation: floatUp 0.8s ease forwards;
+  z-index: 10;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6a5a80;
+}
+.empty-state i { font-size: 3em; margin-bottom: 15px; display: block; }
+.empty-state p { font-size: 1.1em; }
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 30px 20px;
+  color: #4a3a60;
+  font-size: 0.85em;
+  letter-spacing: 1px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--purple); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Sakura petals -->
+<div id="petals"></div>
+
+<div class="container">
+  <!-- Header -->
+  <header class="header">
+    <h1>✨ 动漫人气王 ✨</h1>
+    <p class="subtitle">ANIME POPULARITY RANKING</p>
+    <div class="deco-line"></div>
+  </header>
+
+  <!-- Leaderboard -->
+  <section class="leaderboard" id="leaderboard">
+    <h2><i class="fa-solid fa-crown"></i>实时排行榜<i class="fa-solid fa-crown"></i></h2>
+    <div class="lb-list" id="lbList">
+      <div class="empty-state">
+        <i class="fa-regular fa-face-frown"></i>
+        <p>还没有人投票，快来Pick你最喜欢的角色吧！</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-reset" onclick="resetVotes()">
+      <i class="fa-solid fa-rotate-left"></i> 重置投票
+    </button>
+  </div>
+
+  <!-- Series Tabs -->
+  <div class="series-tabs">
+    <button class="series-tab onepiece active" onclick="filterSeries('all')" data-series="all">全 部</button>
+    <button class="series-tab onepiece" onclick="filterSeries('onepiece')" data-series="onepiece">🏴‍☠️ 海贼王</button>
+    <button class="series-tab naruto" onclick="filterSeries('naruto')" data-series="naruto">🍥 火影忍者</button>
+    <button class="series-tab demonslayer" onclick="filterSeries('demonslayer')" data-series="demonslayer">⚔️ 鬼灭之刃</button>
+  </div>
+
+  <!-- Cards Grid -->
+  <div class="cards-grid" id="cardsGrid"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>数据保存在浏览器本地 · 刷新不丢失</p>
+  </footer>
+</div>
+
+<script>
+// ===== Character Data =====
+const characters = [
+  // 海贼王
+  { id:'luffy',     name:'路飞',   anime:'海贼王', series:'onepiece', emoji:'🏴‍☠️', combat:95, charisma:90, appearance:75 },
+  { id:'zoro',      name:'索隆',   anime:'海贼王', series:'onepiece', emoji:'⚔️', combat:93, charisma:85, appearance:88 },
+  { id:'nami',      name:'娜美',   anime:'海贼王', series:'onepiece', emoji:'🍊', combat:40, charisma:80, appearance:95 },
+  { id:'sanji',     name:'山治',   anime:'海贼王', series:'onepiece', emoji:'🍳', combat:85, charisma:82, appearance:85 },
+  { id:'usopp',     name:'乌索普', anime:'海贼王', series:'onepiece', emoji:'🎯', combat:30, charisma:75, appearance:55 },
+  { id:'chopper',   name:'乔巴',   anime:'海贼王', series:'onepiece', emoji:'🦌', combat:25, charisma:90, appearance:95 },
+  { id:'robin',     name:'罗宾',   anime:'海贼王', series:'onepiece', emoji:'📚', combat:60, charisma:85, appearance:92 },
+  { id:'franky',    name:'弗兰奇', anime:'海贼王', series:'onepiece', emoji:'🤖', combat:78, charisma:75, appearance:50 },
+  { id:'brook',     name:'布鲁克', anime:'海贼王', series:'onepiece', emoji:'💀', combat:70, charisma:80, appearance:60 },
+  { id:'jinbe',     name:'甚平',   anime:'海贼王', series:'onepiece', emoji:'🦈', combat:88, charisma:78, appearance:45 },
+  // 火影忍者
+  { id:'naruto',    name:'鸣人',   anime:'火影忍者', series:'naruto', emoji:'🍥', combat:90, charisma:92, appearance:60 },
+  { id:'sasuke',    name:'佐助',   anime:'火影忍者', series:'naruto', emoji:'🌑', combat:92, charisma:70, appearance:95 },
+  { id:'sakura',    name:'小樱',   anime:'火影忍者', series:'naruto', emoji:'🌸', combat:65, charisma:65, appearance:78 },
+  { id:'kakashi',   name:'卡卡西', anime:'火影忍者', series:'naruto', emoji:'📖', combat:88, charisma:90, appearance:90 },
+  { id:'itachi',    name:'鼬',     anime:'火影忍者', series:'naruto', emoji:'🌙', combat:95, charisma:88, appearance:92 },
+  { id:'obito',     name:'带土',   anime:'火影忍者', series:'naruto', emoji:'🌀', combat:90, charisma:78, appearance:75 },
+  { id:'jiraiya',   name:'自来也', anime:'火影忍者', series:'naruto', emoji:'🐸', combat:85, charisma:88, appearance:55 },
+  { id:'tsunade',   name:'纲手',   anime:'火影忍者', series:'naruto', emoji:'💎', combat:82, charisma:80, appearance:93 },
+  { id:'gaara',     name:'我爱罗', anime:'火影忍者', series:'naruto', emoji:'🏜️', combat:85, charisma:82, appearance:80 },
+  { id:'hinata',    name:'雏田',   anime:'火影忍者', series:'naruto', emoji:'💜', combat:55, charisma:80, appearance:90 },
+  // 鬼灭之刃
+  { id:'tanjiro',   name:'炭治郎',     anime:'鬼灭之刃', series:'demonslayer', emoji:'🔥', combat:78, charisma:88, appearance:80 },
+  { id:'nezuko',    name:'祢豆子',     anime:'鬼灭之刃', series:'demonslayer', emoji:'🎋', combat:70, charisma:85, appearance:95 },
+  { id:'zenitsu',   name:'我妻善逸',   anime:'鬼灭之刃', series:'demonslayer', emoji:'⚡', combat:60, charisma:60, appearance:70 },
+  { id:'inosuke',   name:'嘴平伊之助', anime:'鬼灭之刃', series:'demonslayer', emoji:'🐗', combat:75, charisma:75, appearance:80 },
+  { id:'giyu',      name:'富冈义勇',   anime:'鬼灭之刃', series:'demonslayer', emoji:'🌊', combat:88, charisma:78, appearance:92 },
+  { id:'shinobu',   name:'蝴蝶忍',     anime:'鬼灭之刃', series:'demonslayer', emoji:'🦋', combat:78, charisma:85, appearance:93 },
+  { id:'rengoku',   name:'炼狱杏寿郎', anime:'鬼灭之刃', series:'demonslayer', emoji:'🔥', combat:90, charisma:95, appearance:88 },
+  { id:'muichiro',  name:'时透无一郎', anime:'鬼灭之刃', series:'demonslayer', emoji:'🌫️', combat:85, charisma:72, appearance:90 },
+  { id:'mitsuri',   name:'甘露寺蜜璃', anime:'鬼灭之刃', series:'demonslayer', emoji:'💗', combat:75, charisma:82, appearance:95 },
+  { id:'sanemi',    name:'不死川实弥', anime:'鬼灭之刃', series:'demonslayer', emoji:'💨', combat:87, charisma:68, appearance:82 },
+];
+
+// ===== State =====
+const STORAGE_KEY = 'anime_votes_data';
+let votes = {};
+let currentFilter = 'all';
+
+function loadVotes() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    votes = raw ? JSON.parse(raw) : {};
+  } catch(e) {
+    votes = {};
+  }
+}
+
+function saveVotes() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+}
+
+function getVotes(id) {
+  return votes[id] || 0;
+}
+
+// ===== Render =====
+function renderAll() {
+  renderCards();
+  renderLeaderboard();
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  const filtered = currentFilter === 'all'
+    ? characters
+    : characters.filter(c => c.series === currentFilter);
+
+  grid.innerHTML = filtered.map(c => {
+    const v = getVotes(c.id);
+    return `
+      <div class="card ${c.series}" id="card-${c.id}">
+        <div class="card-avatar ${c.series}"><img src="images/${c.id}.png" alt="${c.name}" onerror="this.parentElement.innerHTML='${c.emoji}'"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <span class="card-name">${c.name}</span>
+            <span class="card-anime ${c.series}">${c.anime}</span>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <span class="stat-icon">⚔️</span>
+              <span style="font-size:0.75em;color:#ff6b6b;">战力</span>
+              <div class="stat-bar-bg"><div class="stat-bar-fill combat" style="width:${c.combat}%"></div></div>
+              <span class="stat-value">${c.combat}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-icon">✨</span>
+              <span style="font-size:0.75em;color:#feca57;">魅力</span>
+              <div class="stat-bar-bg"><div class="stat-bar-fill charisma" style="width:${c.charisma}%"></div></div>
+              <span class="stat-value">${c.charisma}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-icon">💄</span>
+              <span style="font-size:0.75em;color:#ff9ff3;">颜值</span>
+              <div class="stat-bar-bg"><div class="stat-bar-fill appearance" style="width:${c.appearance}%"></div></div>
+              <span class="stat-value">${c.appearance}</span>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span class="vote-count"><i class="fa-solid fa-heart"></i>${v} 票</span>
+            <button class="btn-vote" onclick="vote('${c.id}')">
+              <i class="fa-solid fa-thumbs-up"></i> +1
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderLeaderboard() {
+  const lbList = document.getElementById('lbList');
+  const sorted = [...characters]
+    .map(c => ({ ...c, votes: getVotes(c.id) }))
+    .sort((a, b) => b.votes - a.votes)
+    .slice(0, 10);
+
+  if (sorted.length === 0 || sorted.every(c => c.votes === 0)) {
+    lbList.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-regular fa-face-frown"></i>
+        <p>还没有人投票，快来Pick你最喜欢的角色吧！</p>
+      </div>`;
+    return;
+  }
+
+  lbList.innerHTML = sorted.map((c, i) => {
+    let rankClass = '', rankIcon = '';
+    if (i === 0) { rankClass = 'top-1 gold'; rankIcon = '🥇'; }
+    else if (i === 1) { rankClass = 'top-2 silver'; rankIcon = '🥈'; }
+    else if (i === 2) { rankClass = 'top-3 bronze'; rankIcon = '🥉'; }
+
+    return `
+      <div class="lb-item ${rankClass}">
+        <span class="lb-rank ${i < 3 ? ['gold','silver','bronze'][i] : ''}">${rankIcon || (i + 1)}</span>
+        <div class="lb-avatar ${c.series}"><img src="images/${c.id}.png" alt="${c.name}" onerror="this.parentElement.innerHTML='${c.emoji}'"></div>
+        <div class="lb-info">
+          <div class="lb-name">${c.name}</div>
+          <div class="lb-anime">${c.anime}</div>
+        </div>
+        <span class="lb-votes"><i class="fa-solid fa-heart"></i> ${c.votes}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ===== Actions =====
+function vote(id) {
+  votes[id] = (votes[id] || 0) + 1;
+  saveVotes();
+  updateVoteDisplay(id);
+
+  // Floating +1 animation
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const btn = card.querySelector('.btn-vote');
+    btn.classList.add('voted');
+    setTimeout(() => btn.classList.remove('voted'), 400);
+
+    const float = document.createElement('span');
+    float.className = 'vote-float';
+    float.textContent = '+1';
+    float.style.left = (btn.offsetLeft + btn.offsetWidth / 2 - 15) + 'px';
+    float.style.top = btn.offsetTop + 'px';
+    card.appendChild(float);
+    setTimeout(() => float.remove(), 800);
+  }
+
+  renderLeaderboard();
+}
+
+function updateVoteDisplay(id) {
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const vc = card.querySelector('.vote-count');
+    vc.innerHTML = '<i class="fa-solid fa-heart"></i>' + getVotes(id) + ' 票';
+  }
+}
+
+function filterSeries(series) {
+  currentFilter = series;
+  document.querySelectorAll('.series-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.series === series);
+  });
+  renderCards();
+}
+
+function resetVotes() {
+  if (confirm('确定要清空所有投票数据吗？此操作不可恢复！')) {
+    votes = {};
+    saveVotes();
+    renderAll();
+  }
+}
+
+// ===== Petals =====
+function createPetals() {
+  const container = document.getElementById('petals');
+  const petalEmojis = ['🌸','💮','🌺','🍃','✿'];
+  for (let i = 0; i < 20; i++) {
+    const petal = document.createElement('span');
+    petal.className = 'petal';
+    petal.textContent = petalEmojis[Math.floor(Math.random() * petalEmojis.length)];
+    petal.style.left = Math.random() * 100 + '%';
+    petal.style.animationDuration = (8 + Math.random() * 12) + 's';
+    petal.style.animationDelay = Math.random() * 10 + 's';
+    petal.style.fontSize = (14 + Math.random() * 16) + 'px';
+    container.appendChild(petal);
+  }
+}
+
+// ===== Init =====
+loadVotes();
+createPetals();
+renderAll();
+</script>
+</body>
+</html>
